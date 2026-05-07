@@ -1,6 +1,7 @@
 {
   "version": 1,
-  "updated_at": "auto",
+  "updated_at": "2026-05-07",
+  "comment": "Mirror list. App probes all on launch, picks fastest working ones. Order is hint, probe overrides.",
   "mirrors": [
     {
       "kind": "upstream",
@@ -9,24 +10,52 @@
     },
     {
       "kind": "gh_release",
-      "name": "ghfast",
-      "owner": "zuoliangyu",
-      "repo": "claude-code-mirror",
-      "proxy": "https://ghfast.top"
-    },
-    {
-      "kind": "gh_release",
-      "name": "ghproxy",
-      "owner": "zuoliangyu",
-      "repo": "claude-code-mirror",
-      "proxy": "https://mirror.ghproxy.com"
-    },
-    {
-      "kind": "gh_release",
       "name": "github-direct",
       "owner": "zuoliangyu",
       "repo": "claude-code-mirror",
       "proxy": null
+    },
+    {
+      "kind": "gh_release",
+      "name": "gh-proxy",
+      "owner": "zuoliangyu",
+      "repo": "claude-code-mirror",
+      "proxy": "https://gh-proxy.com"
+    },
+    {
+      "kind": "gh_release",
+      "name": "fastgit",
+      "owner": "zuoliangyu",
+      "repo": "claude-code-mirror",
+      "proxy": "https://fastgit.cc"
+    },
+    {
+      "kind": "gh_release",
+      "name": "yylx",
+      "owner": "zuoliangyu",
+      "repo": "claude-code-mirror",
+      "proxy": "https://git.yylx.win"
+    },
+    {
+      "kind": "gh_release",
+      "name": "chenc",
+      "owner": "zuoliangyu",
+      "repo": "claude-code-mirror",
+      "proxy": "https://github.chenc.dev"
+    },
+    {
+      "kind": "gh_release",
+      "name": "ghproxy-net",
+      "owner": "zuoliangyu",
+      "repo": "claude-code-mirror",
+      "proxy": "https://ghproxy.net"
+    },
+    {
+      "kind": "gh_release",
+      "name": "ghfast",
+      "owner": "zuoliangyu",
+      "repo": "claude-code-mirror",
+      "proxy": "https://ghfast.top"
     }
   ]
 }
