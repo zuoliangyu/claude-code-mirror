@@ -92,15 +92,25 @@ jobs:
       - name: Commit channel pointer
         if: steps.gate.outputs.run == 'true'
         run: |
-          if git diff --quiet channels/; then
-            echo "channel pointer unchanged, nothing to commit"
-            exit 0
-          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add channels/
+          if git diff --cached --quiet; then
+            echo "channel pointer unchanged, nothing to commit"
+            exit 0
+          fi
           git commit -m "chore: bump ${{ matrix.channel }} → ${{ steps.version.outputs.version }}"
-          git push
+          # Retry-rebase loop in case the parallel sync job pushed first
+          for i in 1 2 3; do
+            git pull --rebase origin main || true
+            if git push; then
+              exit 0
+            fi
+            echo "push attempt $i failed, retrying..."
+            sleep 5
+          done
+          echo "push failed after retries"
+          exit 1
 
       - name: Open issue on failure
         if: failure() && steps.gate.outputs.run == 'true'
