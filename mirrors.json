@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "updated_at": "auto",
+  "mirrors": [
+    {
+      "kind": "upstream",
+      "name": "official",
+      "base": "https://downloads.claude.ai/claude-code-releases"
+    },
+    {
+      "kind": "gh_release",
+      "name": "ghfast",
+      "owner": "zuoliangyu",
+      "repo": "claude-code-mirror",
+      "proxy": "https://ghfast.top"
+    },
+    {
+      "kind": "gh_release",
+      "name": "ghproxy",
+      "owner": "zuoliangyu",
+      "repo": "claude-code-mirror",
+      "proxy": "https://mirror.ghproxy.com"
+    },
+    {
+      "kind": "gh_release",
+      "name": "github-direct",
+      "owner": "zuoliangyu",
+      "repo": "claude-code-mirror",
+      "proxy": null
+    }
+  ]
+}
