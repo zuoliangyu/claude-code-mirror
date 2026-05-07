@@ -13,8 +13,8 @@ on:
         default: both
 
 permissions:
-  contents: write   # for committing channels/*.txt and creating releases
-  issues: write     # for opening failure issues
+  contents: write
+  issues: write
 
 jobs:
   sync:
@@ -23,7 +23,6 @@ jobs:
       fail-fast: false
       matrix:
         channel:
-          # workflow_dispatch with "both" expands via the if guards below
           - latest
           - stable
     steps:
@@ -56,12 +55,12 @@ jobs:
           TAG="v${{ steps.version.outputs.version }}"
           if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
             echo "exists=true" >> $GITHUB_OUTPUT
-            echo "Release $TAG already exists, will only update channel pointer"
+            echo "Release $TAG already exists"
           else
             echo "exists=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Run sync.sh
+      - name: Run sync.sh (native binaries)
         if: steps.gate.outputs.run == 'true' && steps.check.outputs.exists == 'false'
         env:
           CHANNEL: ${{ matrix.channel }}
@@ -70,30 +69,57 @@ jobs:
           chmod +x sync/sync.sh
           ./sync/sync.sh
 
-      - name: Create release with artifacts
+      - name: Run sync-npm.sh (npm tarballs)
+        # Always run when this channel is being processed — even if release already
+        # exists, so retroactively-added npm files get uploaded with --clobber.
+        if: steps.gate.outputs.run == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          WORK_DIR: ./work
+        run: |
+          chmod +x sync/sync-npm.sh
+          ./sync/sync-npm.sh
+
+      - name: Create release with all artifacts (new version)
         if: steps.gate.outputs.run == 'true' && steps.check.outputs.exists == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           V="${{ steps.version.outputs.version }}"
           TAG="v$V"
-          # Mark the "latest" channel release as GH Latest, "stable" channel
-          # explicitly NOT, so race timing between matrix jobs doesn't decide it.
           if [[ "${{ matrix.channel }}" == "latest" ]]; then
             LATEST_FLAG="--latest=true"
           else
             LATEST_FLAG="--latest=false"
           fi
+          # Collect all files from native (top level) + npm/ subdir.
+          mapfile -t files < <(find ./work/$V -type f)
           gh release create "$TAG" \
             --repo "${{ github.repository }}" \
             --title "$TAG" \
-            --notes "Auto-mirrored from downloads.claude.ai on $(date -u '+%Y-%m-%d %H:%M UTC')" \
+            --notes "Auto-mirrored from downloads.claude.ai (native) + registry.npmjs.org (npm) on $(date -u '+%Y-%m-%d %H:%M UTC')" \
             $LATEST_FLAG \
-            ./work/$V/*
+            "${files[@]}"
+
+      - name: Upload npm tarballs to existing release (retroactive)
+        # Only fires when release was pre-existing (didn't go through the
+        # "Create release" step above). Adds npm tgz files to old releases.
+        if: steps.gate.outputs.run == 'true' && steps.check.outputs.exists == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V="${{ steps.version.outputs.version }}"
+          TAG="v$V"
+          npm_dir="./work/$V/npm"
+          if [ -d "$npm_dir" ]; then
+            mapfile -t files < <(find "$npm_dir" -type f)
+            for f in "${files[@]}"; do
+              echo "uploading: $f"
+              gh release upload "$TAG" "$f" --repo "${{ github.repository }}" --clobber
+            done
+          fi
 
       - name: Re-affirm Latest flag on existing release
-        # Runs even when sync.sh was skipped (release already existed) — handles
-        # the case where channels diverged previously and Latest is now wrong.
         if: steps.gate.outputs.run == 'true' && steps.check.outputs.exists == 'true' && matrix.channel == 'latest'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -118,7 +144,6 @@ jobs:
             exit 0
           fi
           git commit -m "chore: bump ${{ matrix.channel }} → ${{ steps.version.outputs.version }}"
-          # Retry-rebase loop in case the parallel sync job pushed first
           for i in 1 2 3; do
             git pull --rebase origin main || true
             if git push; then
@@ -139,25 +164,3 @@ jobs:
             --title "Sync failed: ${{ matrix.channel }} on $(date -u +%Y-%m-%d)" \
             --body "Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             --label "sync-failure" || true
-
-  cleanup-old-releases:
-    runs-on: ubuntu-latest
-    needs: sync
-    if: always()
-    steps:
-      - uses: actions/checkout@v4
-      - name: Keep only most recent N releases
-        env:
-          GH_TOKEN: ${{ github.token }}
-          KEEP: 5
-        run: |
-          # Keep the 5 most recent releases by tag, delete older ones (and their tags).
-          # Skips drafts and prereleases.
-          TO_DELETE=$(gh release list --repo "${{ github.repository }}" \
-            --exclude-drafts --exclude-pre-releases \
-            --limit 100 --json tagName,createdAt \
-            | jq -r --argjson k "$KEEP" 'sort_by(.createdAt) | reverse | .[$k:][].tagName')
-          for tag in $TO_DELETE; do
-            echo "deleting old release $tag"
-            gh release delete "$tag" --repo "${{ github.repository }}" --yes --cleanup-tag || true
-          done
