@@ -77,11 +77,29 @@ jobs:
         run: |
           V="${{ steps.version.outputs.version }}"
           TAG="v$V"
+          # Mark the "latest" channel release as GH Latest, "stable" channel
+          # explicitly NOT, so race timing between matrix jobs doesn't decide it.
+          if [[ "${{ matrix.channel }}" == "latest" ]]; then
+            LATEST_FLAG="--latest=true"
+          else
+            LATEST_FLAG="--latest=false"
+          fi
           gh release create "$TAG" \
             --repo "${{ github.repository }}" \
             --title "$TAG" \
             --notes "Auto-mirrored from downloads.claude.ai on $(date -u '+%Y-%m-%d %H:%M UTC')" \
+            $LATEST_FLAG \
             ./work/$V/*
+
+      - name: Re-affirm Latest flag on existing release
+        # Runs even when sync.sh was skipped (release already existed) — handles
+        # the case where channels diverged previously and Latest is now wrong.
+        if: steps.gate.outputs.run == 'true' && steps.check.outputs.exists == 'true' && matrix.channel == 'latest'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V="${{ steps.version.outputs.version }}"
+          gh release edit "v$V" --repo "${{ github.repository }}" --latest=true
 
       - name: Update channel pointer
         if: steps.gate.outputs.run == 'true'
